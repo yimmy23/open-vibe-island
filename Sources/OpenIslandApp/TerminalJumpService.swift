@@ -155,6 +155,37 @@ struct TerminalJumpService {
         return try runAppleScript(script) == "matched"
     }
 
+    /// Resolves the cmux Unix socket path by checking known locations in priority order:
+    /// 1. `/tmp/cmux-last-socket-path` — runtime indicator written by cmux on startup
+    /// 2. `~/Library/Application Support/cmux/cmux.sock` — standard location
+    /// 3. `/tmp/cmux.sock` — legacy fallback
+    private static func resolveCmuxSocketPath() -> String? {
+        let fm = FileManager.default
+
+        // 1. Runtime indicator file written by cmux on startup.
+        let indicatorPath = "/tmp/cmux-last-socket-path"
+        if let recorded = try? String(contentsOfFile: indicatorPath, encoding: .utf8) {
+            let trimmed = recorded.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty, fm.fileExists(atPath: trimmed) {
+                return trimmed
+            }
+        }
+
+        // 2. Standard Application Support location.
+        let appSupportPath = NSHomeDirectory() + "/Library/Application Support/cmux/cmux.sock"
+        if fm.fileExists(atPath: appSupportPath) {
+            return appSupportPath
+        }
+
+        // 3. Legacy fallback.
+        let legacyPath = "/tmp/cmux.sock"
+        if fm.fileExists(atPath: legacyPath) {
+            return legacyPath
+        }
+
+        return nil
+    }
+
     private func jumpToCmuxTerminal(_ target: JumpTarget) -> Bool {
         // Try the cmux Unix socket API to focus a specific surface.
         guard let surfaceID = target.terminalSessionID,
@@ -163,8 +194,7 @@ struct TerminalJumpService {
             return false
         }
 
-        let socketPath = "/tmp/cmux.sock"
-        guard FileManager.default.fileExists(atPath: socketPath) else {
+        guard let socketPath = Self.resolveCmuxSocketPath() else {
             return false
         }
 
