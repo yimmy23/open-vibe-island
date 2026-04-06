@@ -785,9 +785,8 @@ final class AppModel {
     private func applyStartupDiscoveryPayload(_ payload: SessionDiscoveryCoordinator.StartupDiscoveryPayload) {
         discovery.applyStartupDiscoveryPayload(payload)
 
-        // Apply hooks binary URL and update the installed binary if the app ships a newer version.
+        // Apply hooks binary URL.
         hooks.hooksBinaryURL = payload.hooksBinaryURL
-        hooks.updateHooksBinaryIfNeeded()
 
         // Auto-install missing hooks and usage bridge on first launch.
         if payload.hooksBinaryURL != nil {
