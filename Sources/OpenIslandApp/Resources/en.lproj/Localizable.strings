@@ -23,6 +23,7 @@
 "settings.general.hideFullscreen" = "Hide in fullscreen";
 "settings.general.autoHideNoSessions" = "Auto-hide without active sessions";
 "settings.general.autoCollapse" = "Auto-collapse on mouse exit";
+"settings.general.showDockIcon" = "Show icon in Dock";
 "settings.general.cliHooks" = "CLI Hooks";
 "settings.general.activated" = "Activated";
 "settings.general.install" = "Install";
@@ -73,9 +74,10 @@
 
 /* Settings - About */
 "settings.about.version" = "Version %@";
+"settings.about.checkForUpdates" = "Check for Updates…";
 
 /* Settings - Update */
-"settings.update.available" = "v%@ Available";
+"settings.update.available" = "v%@ Available — Update";
 
 /* Island Panel - Bootstrap */
 "island.checkingTerminals" = "Checking open terminal sessions";

@@ -8,6 +8,7 @@ import SwiftUI
 @Observable
 final class AppModel {
     private static let soundMutedDefaultsKey = "overlay.sound.muted"
+    private static let showDockIconDefaultsKey = "app.showDockIcon"
     private static let syntheticClaudeSessionPrefix = "claude-process:"
     private static let liveSessionStalenessWindow: TimeInterval = 15 * 60
     private static let jumpOverlayDismissLeadTime: Duration = .milliseconds(20)
@@ -103,6 +104,13 @@ final class AppModel {
         get { overlay.overlayPlacementDiagnostics }
         set { overlay.overlayPlacementDiagnostics = newValue }
     }
+    var showDockIcon: Bool = false {
+        didSet {
+            guard showDockIcon != oldValue else { return }
+            UserDefaults.standard.set(showDockIcon, forKey: Self.showDockIconDefaultsKey)
+            NSApp.setActivationPolicy(showDockIcon ? .regular : .accessory)
+        }
+    }
     var isSoundMuted = false {
         didSet {
             guard isSoundMuted != oldValue else {
@@ -162,6 +170,7 @@ final class AppModel {
         self.terminalJumpAction = terminalJumpAction
         isSoundMuted = UserDefaults.standard.bool(forKey: Self.soundMutedDefaultsKey)
         selectedSoundName = NotificationSoundService.selectedSoundName
+        showDockIcon = UserDefaults.standard.bool(forKey: Self.showDockIconDefaultsKey)
 
         overlay.appModel = self
         overlay.restoreDisplayPreference()
@@ -382,7 +391,7 @@ final class AppModel {
             hooks.startClaudeUsageMonitoringIfNeeded()
             hooks.refreshCodexUsageState()
             hooks.startCodexUsageMonitoringIfNeeded()
-            updateChecker.checkIfNeeded()
+            updateChecker.startIfNeeded()
 
         } else {
             isResolvingInitialLiveSessions = false
@@ -749,8 +758,9 @@ final class AppModel {
     private func applyStartupDiscoveryPayload(_ payload: SessionDiscoveryCoordinator.StartupDiscoveryPayload) {
         discovery.applyStartupDiscoveryPayload(payload)
 
-        // Apply hooks binary URL.
+        // Apply hooks binary URL and update the installed copy if the app ships a newer version.
         hooks.hooksBinaryURL = payload.hooksBinaryURL
+        hooks.updateHooksBinaryIfNeeded()
 
         // Auto-install missing hooks and usage bridge on first launch.
         if payload.hooksBinaryURL != nil {

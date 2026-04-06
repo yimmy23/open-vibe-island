@@ -39,18 +39,26 @@ python3 "$brand_script"
 python3 "$dmg_bg_script"
 
 rm -rf "$bundle_dir" "$zip_path" "$dmg_path"
-mkdir -p "$bundle_dir/Contents/MacOS" "$bundle_dir/Contents/Helpers" "$bundle_dir/Contents/Resources"
+mkdir -p "$bundle_dir/Contents/MacOS" "$bundle_dir/Contents/Helpers" "$bundle_dir/Contents/Resources" "$bundle_dir/Contents/Frameworks"
 
 cp "$app_binary" "$bundle_dir/Contents/MacOS/OpenIslandApp"
 cp "$hooks_binary" "$bundle_dir/Contents/Helpers/OpenIslandHooks"
 cp "$setup_binary" "$bundle_dir/Contents/Helpers/OpenIslandSetup"
 cp "$brand_icon" "$bundle_dir/Contents/Resources/OpenIsland.icns"
 
-# Copy SPM resource bundle — required by Bundle.module at runtime (localization etc.).
-# SPM places it next to the executable in the build dir; we mirror that in the app bundle.
+# Copy Sparkle.framework for auto-update support.
+sparkle_framework="$repo_root/.build/artifacts/sparkle/Sparkle/Sparkle.xcframework/macos-arm64_x86_64/Sparkle.framework"
+if [[ -d "$sparkle_framework" ]]; then
+    cp -R "$sparkle_framework" "$bundle_dir/Contents/Frameworks/"
+else
+    echo "WARNING: Sparkle.framework not found at $sparkle_framework — run 'swift package resolve' first." >&2
+fi
+
+# Copy SPM resource bundle to .app root — SPM's generated Bundle.module accessor
+# searches Bundle.main.bundleURL (the .app root), NOT Contents/Resources/.
 spm_resource_bundle="$build_bin_dir/OpenIsland_OpenIslandApp.bundle"
 if [[ -d "$spm_resource_bundle" ]]; then
-    cp -R "$spm_resource_bundle" "$bundle_dir/Contents/MacOS/"
+    cp -R "$spm_resource_bundle" "$bundle_dir/"
 else
     echo "WARNING: SPM resource bundle not found at $spm_resource_bundle — app may crash on launch." >&2
 fi
@@ -59,6 +67,9 @@ chmod +x \
     "$bundle_dir/Contents/MacOS/OpenIslandApp" \
     "$bundle_dir/Contents/Helpers/OpenIslandHooks" \
     "$bundle_dir/Contents/Helpers/OpenIslandSetup"
+
+# Add rpath so the binary can find Sparkle.framework in Contents/Frameworks/.
+install_name_tool -add_rpath @loader_path/../Frameworks "$bundle_dir/Contents/MacOS/OpenIslandApp" 2>/dev/null || true
 
 cat > "$bundle_dir/Contents/Info.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
@@ -93,11 +104,65 @@ cat > "$bundle_dir/Contents/Info.plist" <<EOF
     <true/>
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
+    <key>SUFeedURL</key>
+    <string>https://raw.githubusercontent.com/Octane0411/open-vibe-island/main/appcast.xml</string>
+    <key>SUPublicEDKey</key>
+    <string>${OPEN_ISLAND_EDDSA_PUBLIC_KEY:-3IF8txq9RRNanzE2FNhyGRcwhslTucCcJHpTkpxcgBQ=}</string>
 </dict>
 </plist>
 EOF
 
 plutil -lint "$bundle_dir/Contents/Info.plist" >/dev/null
+
+# --- Verify bundle structure matches what the app expects at runtime ---
+verify_errors=0
+for required in \
+    "Contents/MacOS/OpenIslandApp" \
+    "Contents/Helpers/OpenIslandHooks" \
+    "Contents/Helpers/OpenIslandSetup" \
+    "Contents/Resources/OpenIsland.icns" \
+    "OpenIsland_OpenIslandApp.bundle" \
+; do
+    if [[ ! -e "$bundle_dir/$required" ]]; then
+        echo "ERROR: missing required file: $required" >&2
+        verify_errors=$((verify_errors + 1))
+    fi
+done
+
+if [[ $verify_errors -gt 0 ]]; then
+    echo "Bundle verification failed with $verify_errors error(s)." >&2
+    exit 1
+fi
+echo "Bundle structure verified."
+
+# --- Smoke-test the app outside the repo to catch Bundle.module fallback hacks ---
+# SPM's generated resource accessor has a hardcoded fallback to the local .build/
+# directory. Running from /tmp ensures the app works without that crutch.
+smoke_dir="$(mktemp -d)/smoke-test"
+mkdir -p "$smoke_dir"
+cp -R "$bundle_dir" "$smoke_dir/"
+smoke_app="$smoke_dir/$(basename "$bundle_dir")"
+smoke_binary="$smoke_app/Contents/MacOS/OpenIslandApp"
+if [[ -x "$smoke_binary" ]]; then
+    # Launch and give it a few seconds — if it crashes, the pid disappears.
+    "$smoke_binary" &
+    smoke_pid=$!
+    sleep 3
+    if kill -0 "$smoke_pid" 2>/dev/null; then
+        kill "$smoke_pid" 2>/dev/null || true
+        wait "$smoke_pid" 2>/dev/null || true
+        echo "Smoke test passed — app launched successfully outside repo."
+    else
+        wait "$smoke_pid" 2>/dev/null || true
+        echo "ERROR: app crashed when launched outside the repo directory." >&2
+        echo "       This likely means Bundle.module cannot find its resource bundle." >&2
+        rm -rf "$(dirname "$smoke_dir")"
+        exit 1
+    fi
+    rm -rf "$(dirname "$smoke_dir")"
+else
+    echo "WARNING: smoke test skipped — binary not found at $smoke_binary" >&2
+fi
 
 if [[ -n "$signing_identity" ]]; then
     codesign \
@@ -123,6 +188,12 @@ if [[ -n "$signing_identity" ]]; then
         "$bundle_dir"
 
     codesign --verify --deep --strict --verbose=2 "$bundle_dir"
+else
+    # Ad-hoc sign so macOS accepts the embedded Sparkle.framework.
+    codesign --force --sign - "$bundle_dir/Contents/Frameworks/Sparkle.framework" 2>/dev/null || true
+    codesign --force --sign - "$bundle_dir/Contents/Helpers/OpenIslandHooks" 2>/dev/null || true
+    codesign --force --sign - "$bundle_dir/Contents/Helpers/OpenIslandSetup" 2>/dev/null || true
+    codesign --force --sign - "$bundle_dir" 2>/dev/null || true
 fi
 
 ditto -c -k --keepParent "$bundle_dir" "$zip_path"
