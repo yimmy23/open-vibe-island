@@ -462,6 +462,16 @@ struct TerminalJumpService {
             }
         }
 
+        // Match by TTY.
+        if let targetTTY = target.terminalTTY,
+           !targetTTY.isEmpty,
+           let matched = panes.first(where: { $0.ttyName == targetTTY }) {
+            if weztermFamilyActivatePane(cliPath: cliPath, paneID: matched.paneID) {
+                try? openAction(["-b", bundleIdentifier])
+                return true
+            }
+        }
+
         // Match by working directory.
         if let targetCWD = target.workingDirectory {
             let normalizedTarget = URL(fileURLWithPath: targetCWD).standardizedFileURL.path

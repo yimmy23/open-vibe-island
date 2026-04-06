@@ -279,7 +279,18 @@ struct TerminalJumpTargetResolver {
             }
         }
 
-        // Pass 2: working directory match.
+        // Pass 2: TTY match.
+        for snapshot in snapshots where !assignments.values.contains(where: { $0.paneID == snapshot.paneID }) {
+            guard let snapshotTTY = nonEmptyValue(snapshot.ttyName) else { continue }
+            if let session = sessions.first(where: {
+                assignments[$0.id] == nil
+                    && nonEmptyValue($0.jumpTarget?.terminalTTY) == snapshotTTY
+            }) {
+                assignments[session.id] = snapshot
+            }
+        }
+
+        // Pass 3: working directory match.
         for snapshot in snapshots where !assignments.values.contains(where: { $0.paneID == snapshot.paneID }) {
             let snapshotCWD = normalizedPathForMatching(
                 Self.weztermFamilyNormalizeCWD(snapshot.workingDirectory)
@@ -293,7 +304,7 @@ struct TerminalJumpTargetResolver {
             }
         }
 
-        // Pass 3: title match.
+        // Pass 4: title match.
         for snapshot in snapshots where !assignments.values.contains(where: { $0.paneID == snapshot.paneID }) {
             if let session = sessions.first(where: {
                 assignments[$0.id] == nil
