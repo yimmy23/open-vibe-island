@@ -299,6 +299,12 @@ public struct SessionState: Equatable, Sendable {
         var changed: Set<String> = []
 
         for (id, var session) in sessionsByID {
+            // Remote sessions have no local process — keep them alive as long
+            // as the bridge is delivering hook events.
+            if session.isRemote {
+                continue
+            }
+
             let wasAlive = session.isProcessAlive
 
             if aliveSessionIDs.contains(id) {
