@@ -244,6 +244,7 @@ struct IslandPanelView: View {
                 openedContent
                     .frame(width: openedWidth - 24)
                     .frame(maxHeight: isOpened ? currentHeight - closedNotchHeight - 12 : 0, alignment: .top)
+                    .opacity(isOpened ? 1 : 0)
                     .clipped()
             }
             .frame(width: currentWidth, height: currentHeight, alignment: .top)
@@ -296,10 +297,11 @@ struct IslandPanelView: View {
 
     @ViewBuilder
     private var headerRow: some View {
-        if isOpened {
-            openedHeaderContent
-                .frame(height: closedNotchHeight)
-        } else {
+        // ZStack cross-fade instead of if/else structural switch.
+        // An if/else branch is a non-animatable structural change — the closed
+        // content used to appear instantly while the shape was still animating,
+        // giving the "expanded area with collapsed content" glitch.
+        ZStack(alignment: .top) {
             HStack(spacing: 0) {
                 if hasClosedPresence {
                     HStack(spacing: 4) {
@@ -336,6 +338,13 @@ struct IslandPanelView: View {
                 }
             }
             .frame(height: closedNotchHeight)
+            .opacity(isOpened ? 0 : 1)
+            .allowsHitTesting(!isOpened)
+
+            openedHeaderContent
+                .frame(height: closedNotchHeight)
+                .opacity(isOpened ? 1 : 0)
+                .allowsHitTesting(isOpened)
         }
     }
 
