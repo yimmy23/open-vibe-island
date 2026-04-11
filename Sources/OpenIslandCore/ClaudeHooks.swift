@@ -1107,16 +1107,25 @@ public extension ClaudeHookPayload {
             return "Zellij"
         }
 
-        if environment["GHOSTTY_RESOURCES_DIR"] != nil {
-            return "Ghostty"
-        }
-
-        if environment["WARP_IS_LOCAL_SHELL_SESSION"] != nil {
-            return "Warp"
-        }
-
+        // Check TERM_PROGRAM early: IDE-embedded terminals (VS Code, Cursor,
+        // Windsurf, Trae) set this to their own value, but may inherit env
+        // vars like GHOSTTY_RESOURCES_DIR from the outer terminal that
+        // launched the IDE. TERM_PROGRAM is the most specific signal for the
+        // *innermost* terminal, so it takes priority.
         let termProgram = environment["TERM_PROGRAM"]?.lowercased()
         switch termProgram {
+        case .some("vscode"):
+            // Cursor also sets TERM_PROGRAM=vscode; check its unique env var first
+            if environment["CURSOR_TRACE_ID"] != nil {
+                return "Cursor"
+            }
+            return "VS Code"
+        case .some("vscode-insiders"):
+            return "VS Code Insiders"
+        case .some("windsurf"):
+            return "Windsurf"
+        case .some("trae"):
+            return "Trae"
         case .some("apple_terminal"):
             return "Terminal"
         case .some("iterm.app"), .some("iterm2"):
@@ -1132,20 +1141,16 @@ public extension ClaudeHookPayload {
             return "Kaku"
         case .some("wezterm"):
             return "WezTerm"
-        case .some("vscode"):
-            // Cursor also sets TERM_PROGRAM=vscode; check its unique env var first
-            if environment["CURSOR_TRACE_ID"] != nil {
-                return "Cursor"
-            }
-            return "VS Code"
-        case .some("vscode-insiders"):
-            return "VS Code Insiders"
-        case .some("windsurf"):
-            return "Windsurf"
-        case .some("trae"):
-            return "Trae"
         default:
             break
+        }
+
+        if environment["GHOSTTY_RESOURCES_DIR"] != nil {
+            return "Ghostty"
+        }
+
+        if environment["WARP_IS_LOCAL_SHELL_SESSION"] != nil {
+            return "Warp"
         }
 
         // JetBrains IDEs set TERMINAL_EMULATOR=JetBrains-JediTerm.
