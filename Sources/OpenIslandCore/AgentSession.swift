@@ -337,6 +337,12 @@ public struct AgentSession: Equatable, Identifiable, Codable, Sendable {
     /// (`SessionStart` / `SessionEnd`) instead of `ps`/`lsof` process discovery.
     public var isHookManaged: Bool = false
 
+    /// Whether this Codex session originates from the Codex desktop app
+    /// rather than the Codex CLI.  When `true`, liveness is determined by
+    /// whether Codex.app is running (`NSRunningApplication`), not by
+    /// matching individual CLI subprocess PIDs.
+    public var isCodexAppSession: Bool = false
+
     /// Whether the agent session has ended (received `SessionEnd` hook).
     /// Only meaningful for hook-managed sessions.
     public var isSessionEnded: Bool = false
@@ -470,6 +476,9 @@ public extension AgentSession {
         if isDemoSession { return true }
         if phase.requiresAttention { return true }
         if isHookManaged { return !isSessionEnded }
+        // Codex.app sessions stay visible while the desktop app is running.
+        // isProcessAlive is set by app-level NSRunningApplication check.
+        if isCodexAppSession { return isProcessAlive }
         if isProcessAlive { return true }
         return false
     }

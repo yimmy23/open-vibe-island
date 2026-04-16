@@ -73,7 +73,10 @@ public struct SessionState: Equatable, Sendable {
                 cursorMetadata: payload.cursorMetadata?.isEmpty == true ? nil : payload.cursorMetadata
             )
             session.isRemote = payload.isRemote
-            session.isHookManaged = payload.origin == .live
+            session.isCodexAppSession = payload.jumpTarget?.terminalApp == "Codex.app"
+            // Codex.app sessions use app-level liveness, not hook-managed
+            // processNotSeenCount fallback which kills sessions too quickly.
+            session.isHookManaged = payload.origin == .live && !session.isCodexAppSession
             session.isSessionEnded = false
             session.isProcessAlive = true
             session.processNotSeenCount = 0
@@ -327,6 +330,19 @@ public struct SessionState: Equatable, Sendable {
             // Remote sessions have no local process — keep them alive as long
             // as the bridge is delivering hook events.
             if session.isRemote {
+                continue
+            }
+
+            // Codex.app sessions use app-level liveness (NSRunningApplication)
+            // rather than subprocess matching.  Phase is driven by hooks or
+            // the rollout watcher / app-server notifications.
+            if session.isCodexAppSession {
+                let wasAlive = session.isProcessAlive
+                session.isProcessAlive = aliveSessionIDs.contains(id)
+                if session.isProcessAlive != wasAlive {
+                    changed.insert(id)
+                }
+                upsert(session)
                 continue
             }
 

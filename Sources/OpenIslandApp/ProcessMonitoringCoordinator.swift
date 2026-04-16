@@ -243,14 +243,22 @@ final class ProcessMonitoringCoordinator {
         var aliveIDs: Set<String> = []
         let sessions = state.sessions
 
-        // Codex sessions: match by session ID directly.
+        // Codex CLI sessions: match by session ID directly.
         let codexProcessIDs = Set(
             activeProcesses
                 .filter { $0.tool == .codex }
                 .compactMap(\.sessionID)
         )
+        // Codex.app sessions: keep alive while the desktop app is running.
+        let isCodexAppRunning = !NSRunningApplication.runningApplications(
+            withBundleIdentifier: "com.openai.codex"
+        ).isEmpty
         for session in sessions where session.tool == .codex && !session.isDemoSession {
-            if codexProcessIDs.contains(session.id) {
+            if session.isCodexAppSession {
+                if isCodexAppRunning {
+                    aliveIDs.insert(session.id)
+                }
+            } else if codexProcessIDs.contains(session.id) {
                 aliveIDs.insert(session.id)
             }
         }
