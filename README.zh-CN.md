@@ -113,7 +113,15 @@ Open Island 驻留在 Mac 的**刘海区域**（或顶部栏），为你的 AI c
 
 从 [GitHub Releases](https://github.com/Octane0411/open-vibe-island/releases) 下载最新 DMG——已签名公证，开箱即用。
 
-### 方式二：从源码构建
+### 方式二：Homebrew
+
+```bash
+brew install --cask octane0411/tap/openisland
+```
+
+后续升级用 `brew upgrade --cask openisland`。
+
+### 方式三：从源码构建
 
 ```bash
 git clone https://github.com/Octane0411/open-vibe-island.git
