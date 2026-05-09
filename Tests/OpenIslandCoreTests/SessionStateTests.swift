@@ -862,8 +862,9 @@ struct SessionStateTests {
         #expect(enabled.changed)
         #expect(enabled.featureEnabledByInstaller)
         #expect(enabled.contents.contains("[features]"))
-        #expect(enabled.contents.contains("codex_hooks = true"))
-        #expect(!enabled.contents.contains("hooks = true"))
+        let enabledLines = enabled.contents.components(separatedBy: "\n")
+        #expect(enabledLines.contains("codex_hooks = true"))
+        #expect(!enabledLines.contains("hooks = true"))
     }
 
     @Test
